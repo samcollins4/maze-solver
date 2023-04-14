@@ -1,4 +1,4 @@
-# LAB 0
+# LAB 1
 ## Wall Follower 
 In the next session, you will be working on Wall Follower.
 
