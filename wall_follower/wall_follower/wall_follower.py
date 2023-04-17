@@ -36,6 +36,9 @@ class Follow(Node):
         if self.i < 10:
             msg.linear.x = 1.0
             self.i += 1
+            
+        else:
+            msg.linear.x = 0
         self.publisher_.publish(msg)
     
     def listener_callback(self,msg):
