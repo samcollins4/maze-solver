@@ -1,7 +1,7 @@
 from setuptools import setup
 
 package_name = 'wall_follower'
-
+# submodules = "wall_follower/submodules"
 setup(
     name=package_name,
     version='0.0.0',

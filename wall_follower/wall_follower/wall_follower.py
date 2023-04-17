@@ -25,6 +25,18 @@ class Follow(Node):
         timer_period = 0.5  # seconds
         self.i = 0
         self.timer = self.create_timer(timer_period, self.timer_callback)
+        
+        
+    def getch(self):
+        import sys, tty, termios
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)
+        try:
+            tty.setraw(sys.stdin.fileno())
+            ch = sys.stdin.read(1)
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        return ch
 
     def timer_callback(self):
         '''
@@ -32,14 +44,17 @@ class Follow(Node):
         TODO: implement
         '''
         msg = Twist()
-        
-        if self.i < 10:
-            msg.linear.x = 1.0
-            self.i += 1
-            
+        key = self.getch()
+        if key == 'm':
+            msg.linear.x = 1.0  
+        elif key == 'b':
+            msg.linear.x = -1.0  
         else:
-            msg.linear.x = 0
+            msg.linear.x = 0.0
         self.publisher_.publish(msg)
+        
+        
+  
     
     def listener_callback(self,msg):
         '''
