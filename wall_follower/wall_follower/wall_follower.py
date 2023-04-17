@@ -23,6 +23,7 @@ class Follow(Node):
             qos_profile,
         )
         timer_period = 0.5  # seconds
+        self.i = 0
         self.timer = self.create_timer(timer_period, self.timer_callback)
 
     def timer_callback(self):
@@ -31,7 +32,10 @@ class Follow(Node):
         TODO: implement
         '''
         msg = Twist()
-        msg.linear.x = 1.0
+        
+        if self.i < 10:
+            msg.linear.x = 1.0
+            self.i += 1
         self.publisher_.publish(msg)
     
     def listener_callback(self,msg):
