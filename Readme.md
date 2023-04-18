@@ -27,7 +27,7 @@ sudo apt install git-all
 #### 3. Build Package
 ```
 cd ./ros_ws
-colcon build --packages-select Maze-Solver-450
+colcon build
 ```
 
 #### 4. Run Node ( Modify as Needed )
