@@ -54,3 +54,9 @@ Running Node ( Modify as Needed )
 ros2 run wall_follower follow 
 
 ```
+
+### Start and Stop (For base code)
+
+- Move Forward 'm'
+- Move Backward 'b'
+- Stop 'any other key'
