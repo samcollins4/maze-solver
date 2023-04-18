@@ -1,3 +1,0 @@
-[console_scripts]
-follow = wall_follower.wall_follower:main
-
