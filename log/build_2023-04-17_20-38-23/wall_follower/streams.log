@@ -1,0 +1,37 @@
+[0.602s] Invoking command in '/home/naveen/ros_ws/src/wall_follower': PYTHONPATH=/home/naveen/ros_ws/src/build/wall_follower/prefix_override:/home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../build/wall_follower build --build-base /home/naveen/ros_ws/src/build/wall_follower/build install --record /home/naveen/ros_ws/src/build/wall_follower/install.log --single-version-externally-managed
+[0.811s] running egg_info
+[0.812s] creating ../build/wall_follower/wall_follower.egg-info
+[0.812s] writing ../build/wall_follower/wall_follower.egg-info/PKG-INFO
+[0.812s] writing dependency_links to ../build/wall_follower/wall_follower.egg-info/dependency_links.txt
+[0.812s] writing entry points to ../build/wall_follower/wall_follower.egg-info/entry_points.txt
+[0.812s] writing requirements to ../build/wall_follower/wall_follower.egg-info/requires.txt
+[0.812s] writing top-level names to ../build/wall_follower/wall_follower.egg-info/top_level.txt
+[0.814s] writing manifest file '../build/wall_follower/wall_follower.egg-info/SOURCES.txt'
+[0.834s] reading manifest file '../build/wall_follower/wall_follower.egg-info/SOURCES.txt'
+[0.834s] writing manifest file '../build/wall_follower/wall_follower.egg-info/SOURCES.txt'
+[0.834s] running build
+[0.835s] running build_py
+[0.835s] creating /home/naveen/ros_ws/src/build/wall_follower/build
+[0.835s] creating /home/naveen/ros_ws/src/build/wall_follower/build/lib
+[0.835s] creating /home/naveen/ros_ws/src/build/wall_follower/build/lib/wall_follower
+[0.835s] copying wall_follower/__init__.py -> /home/naveen/ros_ws/src/build/wall_follower/build/lib/wall_follower
+[0.835s] copying wall_follower/wall_follower.py -> /home/naveen/ros_ws/src/build/wall_follower/build/lib/wall_follower
+[0.835s] running install
+[0.835s] running install_lib
+[0.836s] creating /home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages/wall_follower
+[0.836s] copying /home/naveen/ros_ws/src/build/wall_follower/build/lib/wall_follower/__init__.py -> /home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages/wall_follower
+[0.836s] copying /home/naveen/ros_ws/src/build/wall_follower/build/lib/wall_follower/wall_follower.py -> /home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages/wall_follower
+[0.836s] byte-compiling /home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages/wall_follower/__init__.py to __init__.cpython-38.pyc
+[0.836s] byte-compiling /home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages/wall_follower/wall_follower.py to wall_follower.cpython-38.pyc
+[0.837s] running install_data
+[0.837s] creating /home/naveen/ros_ws/src/install/wall_follower/share/ament_index
+[0.837s] creating /home/naveen/ros_ws/src/install/wall_follower/share/ament_index/resource_index
+[0.837s] creating /home/naveen/ros_ws/src/install/wall_follower/share/ament_index/resource_index/packages
+[0.837s] copying resource/wall_follower -> /home/naveen/ros_ws/src/install/wall_follower/share/ament_index/resource_index/packages
+[0.837s] copying package.xml -> /home/naveen/ros_ws/src/install/wall_follower/share/wall_follower
+[0.837s] running install_egg_info
+[0.838s] Copying ../build/wall_follower/wall_follower.egg-info to /home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages/wall_follower-0.0.0-py3.8.egg-info
+[0.839s] running install_scripts
+[0.846s] Installing follow script to /home/naveen/ros_ws/src/install/wall_follower/lib/wall_follower
+[0.846s] writing list of installed files to '/home/naveen/ros_ws/src/build/wall_follower/install.log'
+[0.877s] Invoked command in '/home/naveen/ros_ws/src/wall_follower' returned '0': PYTHONPATH=/home/naveen/ros_ws/src/build/wall_follower/prefix_override:/home/naveen/ros_ws/src/install/wall_follower/lib/python3.8/site-packages:${PYTHONPATH} /usr/bin/python3 setup.py egg_info --egg-base ../build/wall_follower build --build-base /home/naveen/ros_ws/src/build/wall_follower/build install --record /home/naveen/ros_ws/src/build/wall_follower/install.log --single-version-externally-managed

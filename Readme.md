@@ -52,3 +52,9 @@ In new terminal/tab,
 export TURTLEBOT3_MODEL=waffle
 ros2 launch turtlebot3_gazebo empty_world.launch.py 
 ```
+
+
+## Start and Stop (Only for starter code)
+- Move Forward 'm'
+- Move Back 'b'
+- Stop 'Any other Key'
