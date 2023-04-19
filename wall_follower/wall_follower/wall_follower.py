@@ -2,6 +2,8 @@
     Minimal code for wall follower 
 """
 
+from math import pi
+
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
@@ -16,19 +18,22 @@ class Follow(Node):
         qos_profile = QoSProfile(depth=10)
         qos_profile.reliability = QoSReliabilityPolicy.BEST_EFFORT
         qos_profile.durability = QoSDurabilityPolicy.VOLATILE
+        self.zero = 0.0
+        self.angle_increment = 1.0
+        
         self.subscription= self.create_subscription(
             LaserScan,
             '/scan',  ## Read
             self.listener_callback,
             qos_profile,
         )
-        timer_period = 0.5 # seconds
+        timer_period = 0.05 # seconds
         self.i = 0
         self.timer = self.create_timer(timer_period, self.timer_callback)
         self.msg = Twist()
         
         
-    def getch(self, timeout=0.5):
+    def getch(self, timeout=0.1):
         import sys, tty, termios, select
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
@@ -43,6 +48,10 @@ class Follow(Node):
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return ch
 
+    def angle(self,angle_):
+        ninty = self.zero + int((pi*angle_/180)/ self.angle_increment)
+        return int(ninty)
+    
     def timer_callback(self):
         '''
         Publisher callback function
@@ -57,14 +66,23 @@ class Follow(Node):
         elif key == ' ':
             self.msg.linear.x = 0.0
         self.publisher_.publish(self.msg)
+        
+        
+    
 
     def listener_callback(self,msg):
         '''
         Subscription Callback 
         TODO: implement
         '''
-        self.get_logger().info('I heard : Range[0] "%f" Ranges[50]: "%f"' %(msg.ranges[0] ,msg.ranges[50]))
+        self.angle_increment = msg.angle_increment
+        self.zero = int((0.0 - msg.angle_min) / self.angle_increment)
         
+        ninty = self.angle(90)
+        
+        self.get_logger().info('I heard : Range[0] "%f" Ranges[90]: "%f"' %(msg.ranges[self.zero] ,msg.ranges[ninty] ))
+
+
 
 def main(args=None):
     rclpy.init(args=args)
