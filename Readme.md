@@ -20,14 +20,15 @@ It is a good idea to make sure your code is working before applying motion.
 sudo apt install git-all
 ```
 #### 2. Clone Package
+```
+cd ./ros_ws/src
+git clone https://github.com/nvnmangla/Maze-Solver-450.git
 
-    cd ./ros_ws/src
-    git clone https://github.com/nvnmangla/Maze-Solver-450.git
-
+```
 #### 3. Build Package
 ```
 cd ./ros_ws
-colcon build --packages-select Maze-Solver-450
+colcon build --packages-select wall_follower
 ```
 
 #### 4. Run Node ( Modify as Needed )
@@ -39,6 +40,7 @@ ros2 run wall_follower follow
 ### Visualization in RVIZ
 Use this to observe what the robot is picking up in it's surrounding
 In new terminal/tab,
+
 ```
 export TURTLEBOT3_MODEL=waffle
 ros2 launch turtlebot3_bringup rviz2.launch.py 
@@ -55,6 +57,6 @@ ros2 launch turtlebot3_gazebo empty_world.launch.py
 
 
 ## Start and Stop (Only for starter code)
-- Move Forward 'm'
-- Move Back 'b'
-- Stop 'Any other Key'
+- Move Forward 'w'
+- Move Back 'x'
+- Stop 'space'

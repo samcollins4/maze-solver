@@ -22,18 +22,23 @@ class Follow(Node):
             self.listener_callback,
             qos_profile,
         )
-        timer_period = 0.5  # seconds
+        timer_period = 0.5 # seconds
         self.i = 0
         self.timer = self.create_timer(timer_period, self.timer_callback)
+        self.msg = Twist()
         
         
-    def getch(self):
-        import sys, tty, termios
+    def getch(self, timeout=0.5):
+        import sys, tty, termios, select
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
         try:
-            tty.setraw(sys.stdin.fileno())
-            ch = sys.stdin.read(1)
+            tty.setraw(fd)
+            rlist, _, _ = select.select([sys.stdin], [], [], timeout)
+            if rlist:
+                ch = sys.stdin.read(1)
+            else:
+                ch = None
         finally:
             termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         return ch
@@ -43,19 +48,16 @@ class Follow(Node):
         Publisher callback function
         TODO: implement
         '''
-        msg = Twist()
+        # msg = Twist()
         key = self.getch()
-        if key == 'm':
-            msg.linear.x = 1.0  
-        elif key == 'b':
-            msg.linear.x = -1.0  
-        else:
-            msg.linear.x = 0.0
-        self.publisher_.publish(msg)
-        
-        
-  
-    
+        if key == 'w':
+            self.msg.linear.x = 1.0  
+        elif key == 'x':
+            self.msg.linear.x = -1.0  
+        elif key == ' ':
+            self.msg.linear.x = 0.0
+        self.publisher_.publish(self.msg)
+
     def listener_callback(self,msg):
         '''
         Subscription Callback 
