@@ -24,20 +24,21 @@ class Follow(Node):
         qos_profile.durability = QoSDurabilityPolicy.VOLATILE
 
         self.zero = 0.0 # index of 0-degree LIDAR ray
-        self.ninty_range = 0.0 # range of 90-degree LIDAR ray
         self.zero_range = np.Inf # range of 0-degree LIDAR ray
-        self.prev_ninty_ranges = [0]*14 # previous 90-degree ranges
+        self.twoseventy_range = np.Inf # range of 270-degree LIDAR ray
+        self.ninty_range = 0.0 # range of 90-degree LIDAR ray
         self.angle_increment = 1.0
-        self.range_max  = 0.0
+        self.desired_wall_distance = 0.35
         self.wall_distance = 0.0 # 0-degree range before rotate so parallel state
-        self.state = 'find wall' # current state of robot
+        self.state = 'follow wall' # current state of robot
 
+        self.goal_angle = 90 # goal angle for minimum distance from wall
 
-        self.i = 0
-
-        #sams vars
         self.index_min_dist = 0.0
         self.angle_min_dist = 0.0
+
+        self.turn = 0.0 # angle has turned so far (approx)
+        self.drive = 0.0 # distance have traveled so far (approx)
         
         self.laser_subscription = self.create_subscription(
             LaserScan,
@@ -46,9 +47,8 @@ class Follow(Node):
             qos_profile,
         )
 
-        self.timer_period = 0.01 # update time in seconds
-        #self.timer = self.create_timer(self.timer_period, self.timer_callback)
-        self.timer = self.create_timer(self.timer_period, self.sams_timer_callback)
+        self.timer_period = 0.05 # update time in seconds
+        self.timer = self.create_timer(self.timer_period, self.timer_callback)
 
         self.msg = Twist()
         
@@ -71,167 +71,190 @@ class Follow(Node):
         ninty = self.zero + int((pi*angle_/180)/ self.angle_increment)
         return int(ninty)
     
-    def sams_timer_callback(self):
-        pass
-        
-        #msg = Twist()        
-
-        #PARAMETERS TO CHANGE
-        self.cornering_linvel = 0.05
-        self.cornering_angvel = 0.3
-
-        self.drive_linvel = 0.1
-
-        self.wall_dist_hi = 0.4
-        self.wall_dist_lo = 0.2
-        #self.drive_angvel (unused) - controller in the code below
-
-        #if the min dist angle << 90, the robot is facing towards the wall, should turn away
-        if (self.angle_min_dist < 80):
-            self.msg.linear.x = self.cornering_linvel
-            self.msg.angular.z = -1*self.cornering_angvel
-        #if the min dist angel >> 90, the robot is facing away from the wall or is too far, should turn closer
-        elif (self.angle_min_dist > 100):
-            self.msg.linear.x =self.cornering_linvel
-            self.msg.angular.z = self.cornering_angvel
-        #if the minimum distance angle is ~= 90, the robot is travelling parallel to a wall
-        else:
-            self.msg.linear.x = self.drive_linvel
-            self.msg.angular.z = 0.0
-            
-        
-        #tests if too far away from wall, steers it towards it
-        if (self.wall_distance > self.wall_dist_hi):
-            self.msg.angular.z = self.msg.angular.z + self.wall_distance/4
-        #tests if too close to wall, steers it away
-        elif (self.wall_distance < self.wall_dist_lo):
-            self.msg.angular.z = self.msg.angular.z - 0.1
-        
-        
-        key = self.getch()
-        if key == 'w':
-            self.msg.linear.x = 1.0  
-        elif key == 'x':
-            self.msg.linear.x = -1.0  
-        elif key == ' ':
-            self.msg.linear.x = 0.0
-            self.msg.angular.z = 0.0
-        
-        self.get_logger().info("xvel:\t" + str(self.msg.linear.x) + "\tzvel:\t" + str(self.msg.angular.z))
-
-        self.publisher_.publish(self.msg)
-
-
+    def indexToAngle(self, index):
+        angle = ((index - self.zero)) *  self.angle_increment * 180/pi
+        if angle < 0:
+            angle = (angle + 360) % 360
+        return angle
+    
     def timer_callback(self):
 
-        if (self.state == 'follow wall'): # every 10 samples do correction.
+        lin_x = 0.0
+        ang_z = 0.0
 
-            if (self.i != 5):
-                self.msg.linear.x = 0.1 # an arbitrary speed
-                self.i = self.i + 1
-            
-            elif (self.i == 5):
-                self.msg.linear.x = 0.0
-                self.i = 0
-                self.state = 'rotate so parallel'
+        if (self.state == 'dead end'): # in a complete dead end where it is entirely surrounded with the walls very close
+            lin_x, ang_z = self.dead_end()
 
-        elif (self.state == 'rotate so parallel'): # reorients bot so it is parallel to wall
+        if (self.state == 'outer corner'): # situation where turning left (we are a leftwall follower)
+            lin_x, ang_z = self.outer_corner()
 
-            if self.wall_distance != 0.0: # tries to maintain the 90-degree LIDAR range to be constant
+        if (self.state == 'inner corner'): # situtation where turning right (leftwall follower)
+            lin_x, ang_z = self.inner_corner()
 
-                if np.abs(self.ninty_range - self.wall_distance) > self.wall_distance*0.05: # reorient if ninty degree LIDAR range has changes
-                    self.msg.angular.z = (self.ninty_range - self.wall_distance) * 0.5 
-                
-                elif np.abs(self.ninty_range - self.wall_distance) < self.wall_distance*0.05:
-                    self.msg.angular.z = 0.0
-                    self.wall_distance = self.ninty_range
-                    self.state = 'follow wall'
-                
-                self.get_logger().info("%r, %f, %f" % (self.state, self.wall_distance, self.ninty_range))
-
-            elif self.wall_distance == 0.0: # if there is no known wall distance to reorient
-
-                first_half_median = np.median(self.prev_ninty_ranges[:int(len(self.prev_ninty_ranges)/2)])
-                second_half_median = np.median(self.prev_ninty_ranges[int(len(self.prev_ninty_ranges)/2):])   
-
-                if self.range_max == second_half_median: # if wall hasn't show up yet on 90-degree LIDAR rotate slowly
-                    self.msg.angular.z = -0.05
-
-                elif np.abs(first_half_median - second_half_median) > 0.02*second_half_median:
-
-                    # if difference between first half previous ranges and second half
-                    # is more than 2% do a proportional controller to reorient itself
-                    # finds minimum 90 degree range this way
-
-                    self.msg.angular.z = (first_half_median - second_half_median) * -0.2
-
-
-                elif np.abs(first_half_median - second_half_median) < 0.02*second_half_median:
-
-                    # when the 90 degree LIDAR stabilizes exit out of rotate so parallel 
-
-                    self.msg.angular.z = 0.0
-                    self.wall_distance = self.ninty_range
-                    self.state = 'follow wall'
-            
-            #self.get_logger().info("%r, %f, %f, %f" % (self.state, self.zero_range, first_half_median, second_half_median))
+        if (self.state == 'follow wall'):
+            lin_x, ang_z = self.follow_wall()
             
         elif (self.state == 'find wall'): # go to wall until about 0.35 meters away
-            if (self.zero_range > 0.50):
-                self.msg.linear.x = (self.zero_range - 0.50) * 0.2 # proportional controller
-                self.msg.angular.z = 0.0
-            else:
-                self.msg.linear.x = 0.0
-                self.state = 'rotate so parallel'
-                #self.msg.angular.z = 1.7
-
-
-
-        # msg = Twist()
+            lin_x, ang_z = self.find_wall()
+        
+        self.msg.linear.x = lin_x
+        self.msg.angular.z = ang_z
+        
         key = self.getch()
         if key == 'w':
-            self.msg.linear.x = 0.1  
+            self.msg.linear.x = 0.2  
         elif key == 'x':
-            self.msg.linear.x = -0.1
+            self.msg.linear.x = -0.2
         elif key == 'd':
-            self.msg.angular.z = 0.1
+            self.msg.angular.z = 0.2
         elif key == 'a':
-            self.msg.angular.z = -0.1
+            self.msg.angular.z = -0.2
         elif key == ' ':
             self.msg.linear.x = 0.0
             self.msg.angular.z = 0.0
             self.state = ''
         
-        
-        
+        self.get_logger().info(str(self.msg.linear.x) + "\t" + str(self.msg.angular.z))
         self.publisher_.publish(self.msg)
+
+    def dead_end(self):  
+        angular_vel = 0.1
+        if self.turn < 5*np.pi/6:  # rotate approximately pi radians
+            ang_z = angular_vel
+            lin_x = 0.0
+            self.turn = self.turn + angular_vel*self.timer_period
+        else:
+            ang_z = 0.0
+            lin_x = 0.0
+            self.turn = 0.0
+            self.drive = 0.0
+            self.state = 'follow wall'
+        return lin_x, ang_z
+
+    def outer_corner(self):
+        angular_vel = 0.1
+        linear_vel = 0.1
+
+        if self.drive < 0.15: # drive approx 15 cm forward so it can make turn w/o bumping to wall
+            lin_x = linear_vel
+            self.drive = self.drive + linear_vel*self.timer_period
+
+        elif self.turn < np.pi/3:  # rotate approximately pi/3 radians
+            ang_z = angular_vel
+            lin_x = 0.0
+            self.turn = self.turn + angular_vel*self.timer_period
+            
+        else:
+            # go straight until near wall or about to crash into one >:)
+            if self.zero_range < 0.2 or self.ninty_range < (self.desired_wall_distance + 0.2):
+
+                ang_z = 0.0
+                lin_x = 0.0
+                self.turn = 0.0
+                self.drive = 0.0
+                self.state = 'follow wall'
+
+            else:
+                lin_x = 0.15
+                ang_z = 0.0
+        return lin_x, ang_z
+
+    def inner_corner(self):
+        angular_vel = -0.1 # rotate approximately pi/3 radians
+        if self.turn > -np.pi/3:
+            ang_z = angular_vel
+            lin_x = 0.0
+            self.turn = self.turn + angular_vel*self.timer_period
+        else:
+            ang_z = 0.0
+            lin_x = 0.0
+            self.turn = 0.0
+            self.state = 'follow wall'
+
+        return lin_x, ang_z
+
+    def follow_wall(self):
+        self.drive_linvel = 0.15
+        if self.zero_range < 0.35 and self.ninty_range < 0.35 and self.twoseventy_range < 0.35: # if surrounded prob a dead end
+            self.state = 'dead end'
+            lin_x = 0.0
+            ang_z = 0.0
+
+        elif self.zero_range < 0.35 and self.ninty_range < (self.desired_wall_distance + 0.2): # if front is closed off, inner corner
+            self.state = 'inner corner'
+            lin_x  = 0.0
+            ang_z = 0.0
+
+        elif self.ninty_range > (self.desired_wall_distance + 0.5): # if left wall disappears, outer corner
+            self.state = 'outer corner'
+            self.msg.linear.x  = 0.0
+            ang_z = 0.0
+
+        #if the min dist angle << 90, the robot is facing towards the wall, should turn away
+        elif (self.angle_min_dist < 85):
+            ang_z = -0.01*(90 - self.angle_min_dist)
+            if (ang_z < -0.5):
+                ang_z = -0.5 # prevents from bot from spinning too fast
+
+        #if the min dist angel >> 90, the robot is facing away from the wall or is too far, should turn closer
+        elif (self.angle_min_dist > 95):
+            ang_z = 0.01*(self.angle_min_dist - 90)
+
+            if (ang_z > 0.5):
+                ang_z = 0.5 # prevents from bot from spinning too fast
+        
+        #if too close or far from the wall orient towards it
+        elif (np.abs(self.desired_wall_distance - self.wall_distance) > 0.1):
+            ang_z = 1 * (self.wall_distance - self.desired_wall_distance)
+        
+        else:
+            ang_z = 0.0 # if bot wants to chug forward, dont rotate
+
+        #if the minimum distance angle is ~= 90, the robot is travelling parallel to a wall
+
+        # go close to wall, slow down if getting close
+        if self.zero_range > 0.65:
+            lin_x = self.drive_linvel
+
+        if self.zero_range < 0.65 and self.zero_range > 0.35:
+            lin_x = self.drive_linvel * (self.zero_range - 0.25) # slows down the bot when close to wall
+        
+        return lin_x, ang_z
+
+    def find_wall(self):
+        stop_range = self.desired_wall_distance
+        if (self.zero_range > stop_range):
+            lin_x = ((self.zero_range - stop_range) * 0.5) + 0.05 # proportional controller
+            ang_z = 0.0
+        else:
+            self.msg.linear.x = 0.0
+            self.state = 'follow wall'
+        
+        return lin_x, ang_z
+
 
     def laser_listener_callback(self, msg):
 
         self.angle_increment = msg.angle_increment
-        self.range_max = msg.range_max
         self.zero = int((0.0 - msg.angle_min) / self.angle_increment) # finds index of 0 degree LIDAR ray
 
-        self.zero_range = msg.ranges[self.zero]
-        self.prev_ninty_ranges = self.prev_ninty_ranges[1:] + [self.ninty_range] # update array of previous 90 degree LIDAR ranges
+        msg.ranges = [msg.range_max if i > msg.range_max else i for i in msg.ranges] # makes sure no LIDAR ray is above range max
 
-        self.ninty_range = msg.ranges[self.angle(90.0)]
+        # averages values +- 5 degrees around target LIDAR
+        self.zero_range = np.mean([msg.ranges[self.angle(i)] for i in list(range(0, 6)) + list(range(355, 361))])
+        self.ninty_range = np.mean([msg.ranges[self.angle(i)] for i in range(85, 96)])
+        self.twoseventy_range = np.mean([msg.ranges[self.angle(i)] for i in range(260, 280)])
 
         # find the angle of the closest distance to the wall.  
         # if parallel is 90.  if > 90, should rotate CW.  if < 90, should rotate CCW
-
+        #left_ranges = msg.ranges[self.angle(45) : self.angle(135)]
         self.wall_distance = min(msg.ranges)
-        self.index_min_dist = msg.ranges.index(self.wall_distance)
-        self.angle_min_dist = self.zero + self.index_min_dist
 
-        if self.ninty_range == np.Inf: # saturate current 90 degree LIDAR range to avoid uncontrollable behavior
-            self.ninty_range = msg.range_max
+        self.index_min_dist = msg.ranges.index(self.wall_distance)
+        self.angle_min_dist = self.indexToAngle(self.index_min_dist)
 
         #debugging outputs
-        #self.get_logger().info(str(self.zero_range) + '\t' + str(self.ninty_range))
-        #self.get_logger().info(str(self.angle_min_dist) + '\t' + str(self.index_min_dist) + '\t' + str(msg.ranges[self.index_min_dist]) + '\t' + str(self.wall_distance))
-        self.get_logger().info(str(self.angle_min_dist) + '\t' + str(self.index_min_dist) + '\t' + str(self.wall_distance))
-
+        self.get_logger().info(str(self.twoseventy_range) + '\t' + str(self.zero_range) + '\t' + str(self.ninty_range) + '\t' + str(self.state))
 
 
 def main(args=None):
