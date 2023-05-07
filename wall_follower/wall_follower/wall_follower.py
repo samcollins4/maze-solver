@@ -1,5 +1,5 @@
 """
-    Minimal code for wall follower 
+    new algorith, much simpler 
 """
 
 from math import pi
@@ -23,12 +23,16 @@ class Follow(Node):
         qos_profile.reliability = QoSReliabilityPolicy.BEST_EFFORT
         qos_profile.durability = QoSDurabilityPolicy.VOLATILE
 
+
+
         self.zero = 0.0 # index of 0-degree LIDAR ray
         self.zero_range = np.Inf # range of 0-degree LIDAR ray
         self.twoseventy_range = np.Inf # range of 270-degree LIDAR ray
         self.ninty_range = 0.0 # range of 90-degree LIDAR ray
         self.angle_increment = 1.0
-        self.desired_wall_distance = 0.35
+
+        #def want to sort through all of these and figure out which ones we are actually using at some point
+        self.desired_wall_distance = 0.3
         self.wall_distance = 0.0 # 0-degree range before rotate so parallel state
         self.state = 'follow wall' # current state of robot
 
@@ -52,7 +56,7 @@ class Follow(Node):
 
         self.msg = Twist()
         
-    def getch(self, timeout=0.1):
+    def getch(self, timeout=0.1): #detecting keyboard shenanagins
         import sys, tty, termios, select
         fd = sys.stdin.fileno()
         old_settings = termios.tcgetattr(fd)
@@ -71,7 +75,7 @@ class Follow(Node):
         ninty = self.zero + int((pi*angle_/180)/ self.angle_increment)
         return int(ninty)
     
-    def indexToAngle(self, index):
+    def indexToAngle(self, index):  # returns the angle of a given index
         angle = ((index - self.zero)) *  self.angle_increment * 180/pi
         if angle < 0:
             angle = (angle + 360) % 360
@@ -79,23 +83,95 @@ class Follow(Node):
     
     def timer_callback(self):
 
+        # i decided to use shorter variable names and then assign them to the message variables later
         lin_x = 0.0
         ang_z = 0.0
 
-        if (self.state == 'dead end'): # in a complete dead end where it is entirely surrounded with the walls very close
-            lin_x, ang_z = self.dead_end()
+        ### obstacle detection section
+        obstacleRange = 0.5 #sets sensetivity to how close a wall has to be for it to detect an object
 
-        if (self.state == 'outer corner'): # situation where turning left (we are a leftwall follower)
-            lin_x, ang_z = self.outer_corner()
+        #initializes obstacle bools
+        obstacleRight = False  
+        obstacleFront = False
+        obstacleLeft = False
 
-        if (self.state == 'inner corner'): # situtation where turning right (leftwall follower)
-            lin_x, ang_z = self.inner_corner()
+        #sets obstacle bools to true if theres an obstacle detected within the obstacle range
+        if (self.zero_range < obstacleRange):
+            obstacleFront = True
+        if (self.ninty_range < obstacleRange):
+            obstacleLeft = True
+        if (self.twoseventy_range < obstacleRange):
+            obstacleRight = True
 
-        if (self.state == 'follow wall'):
-            lin_x, ang_z = self.follow_wall()
+
+        ###path finding section
+
+        #self.state is only used for outputting debug messages
+
+        #if theres something in front of the robot, then it has to turn somewhere.  
+        if (obstacleFront):
+            lin_x = 0.0
+            if(not obstacleLeft):  #if theres nothing to the left of it, it will turn left
+                ang_z = 0.3
+                self.state = "turn left"
+            elif(not obstacleRight): # if theres nothing to the right of it or to the left of it, it will turn right
+                ang_z = -0.3
+                self.state = "turn right"
+            #wasnt sure about the order of precedence with the above two conditions.  
+            # currently it prefers turning left, but might want to swap them.  further testing required
+
+            #edge cases, getting out of odd spots where it spins but there is a clear path
+            #1.4 was picked because right triangles and the distance to a corner if its coming up on a dead end
+            elif(self.frontright_range > obstacleRange*1.4):
+                lin_x = 0.1
+                ang_z = -0.2
+                self.state = "angling right"
+            elif(self.frontleft_range > obstacleRange*1.4):
+                lin_x = 0.1
+                ang_z = 0.2
+                self.state = "angling left"
+            # worst case just keep spinning (e.g. dead end)
+            else: 
+                lin_x = 0.0
+                ang_z = 0.3
+                self.state = "just keep turning left..."
+
+        #if theres no obstacle in front, and there is an obstacle to the right, itll continue following that wall
+        elif(obstacleRight):
+            lin_x = 0.25
+            ang_z = 0.0
+            self.state = "follow wall"
+
+            # correcting, if its turning a corner and didnt quite turn all the way then this will make sure it keeps turning
+            if(self.frontright_range < self.twoseventy_range*1.4 and (self.twoseventy_range < 0.3 or self.frontright_range < 0.3)):
+                lin_x = 0.0
+                ang_z = 0.25
+                self.state = "correcting"
+
+            #if theres a wall that its following and its too far away, itll go closer
+            if(self.twoseventy_range > 0.35):
+                ang_z = -1*self.twoseventy_range/4
+                self.state = "too far, steering towards"
             
-        elif (self.state == 'find wall'): # go to wall until about 0.35 meters away
-            lin_x, ang_z = self.find_wall()
+            #if its following a wall and gets too close to a wall on the other side, itll correct
+            if(self.frontleft_range < self.ninty_range*1.414 and (self.ninty_range < 0.3 or self.frontleft_range < 0.3)):
+                lin_x = 0.1
+                ang_z = -0.2
+                self.state = "correcting, left side"
+
+        #if theres no obstacle in front and theres an obstacle to the left itll go into find-a-wall mode
+        #this is either if its just starting out or if it just lost the right wall and theres no wall in front
+        elif(obstacleLeft):
+            lin_x = 0.12
+            ang_z = -0.4
+            self.state = "steering right"
+        else: #in the void
+            lin_x = 0.2
+            ang_z = -0.2
+        
+        # outputs debugging info
+        self.get_logger().info(str(obstacleLeft) + "  " + str(obstacleFront) + "  " + str(obstacleRight) + '\t' + self.state)
+
         
         self.msg.linear.x = lin_x
         self.msg.angular.z = ang_z
@@ -114,124 +190,7 @@ class Follow(Node):
             self.msg.angular.z = 0.0
             self.state = ''
         
-        self.get_logger().info(str(self.msg.linear.x) + "\t" + str(self.msg.angular.z))
         self.publisher_.publish(self.msg)
-
-    def dead_end(self):  
-        angular_vel = 0.1
-        if self.turn < 5*np.pi/6:  # rotate approximately pi radians
-            ang_z = angular_vel
-            lin_x = 0.0
-            self.turn = self.turn + angular_vel*self.timer_period
-        else:
-            ang_z = 0.0
-            lin_x = 0.0
-            self.turn = 0.0
-            self.drive = 0.0
-            self.state = 'follow wall'
-        return lin_x, ang_z
-
-    def outer_corner(self):
-        angular_vel = 0.1
-        linear_vel = 0.1
-
-        if self.drive < 0.15: # drive approx 15 cm forward so it can make turn w/o bumping to wall
-            lin_x = linear_vel
-            self.drive = self.drive + linear_vel*self.timer_period
-
-        elif self.turn < np.pi/3:  # rotate approximately pi/3 radians
-            ang_z = angular_vel
-            lin_x = 0.0
-            self.turn = self.turn + angular_vel*self.timer_period
-            
-        else:
-            # go straight until near wall or about to crash into one >:)
-            if self.zero_range < 0.2 or self.ninty_range < (self.desired_wall_distance + 0.2):
-
-                ang_z = 0.0
-                lin_x = 0.0
-                self.turn = 0.0
-                self.drive = 0.0
-                self.state = 'follow wall'
-
-            else:
-                lin_x = 0.15
-                ang_z = 0.0
-        return lin_x, ang_z
-
-    def inner_corner(self):
-        angular_vel = -0.1 # rotate approximately pi/3 radians
-        if self.turn > -np.pi/3:
-            ang_z = angular_vel
-            lin_x = 0.0
-            self.turn = self.turn + angular_vel*self.timer_period
-        else:
-            ang_z = 0.0
-            lin_x = 0.0
-            self.turn = 0.0
-            self.state = 'follow wall'
-
-        return lin_x, ang_z
-
-    def follow_wall(self):
-        self.drive_linvel = 0.15
-        if self.zero_range < 0.35 and self.ninty_range < 0.35 and self.twoseventy_range < 0.35: # if surrounded prob a dead end
-            self.state = 'dead end'
-            lin_x = 0.0
-            ang_z = 0.0
-
-        elif self.zero_range < 0.35 and self.ninty_range < (self.desired_wall_distance + 0.2): # if front is closed off, inner corner
-            self.state = 'inner corner'
-            lin_x  = 0.0
-            ang_z = 0.0
-
-        elif self.ninty_range > (self.desired_wall_distance + 0.5): # if left wall disappears, outer corner
-            self.state = 'outer corner'
-            self.msg.linear.x  = 0.0
-            ang_z = 0.0
-
-        #if the min dist angle << 90, the robot is facing towards the wall, should turn away
-        elif (self.angle_min_dist < 85):
-            ang_z = -0.01*(90 - self.angle_min_dist)
-            if (ang_z < -0.5):
-                ang_z = -0.5 # prevents from bot from spinning too fast
-
-        #if the min dist angel >> 90, the robot is facing away from the wall or is too far, should turn closer
-        elif (self.angle_min_dist > 95):
-            ang_z = 0.01*(self.angle_min_dist - 90)
-
-            if (ang_z > 0.5):
-                ang_z = 0.5 # prevents from bot from spinning too fast
-        
-        #if too close or far from the wall orient towards it
-        elif (np.abs(self.desired_wall_distance - self.wall_distance) > 0.1):
-            ang_z = 1 * (self.wall_distance - self.desired_wall_distance)
-        
-        else:
-            ang_z = 0.0 # if bot wants to chug forward, dont rotate
-
-        #if the minimum distance angle is ~= 90, the robot is travelling parallel to a wall
-
-        # go close to wall, slow down if getting close
-        if self.zero_range > 0.65:
-            lin_x = self.drive_linvel
-
-        if self.zero_range < 0.65 and self.zero_range > 0.35:
-            lin_x = self.drive_linvel * (self.zero_range - 0.25) # slows down the bot when close to wall
-        
-        return lin_x, ang_z
-
-    def find_wall(self):
-        stop_range = self.desired_wall_distance
-        if (self.zero_range > stop_range):
-            lin_x = ((self.zero_range - stop_range) * 0.5) + 0.05 # proportional controller
-            ang_z = 0.0
-        else:
-            self.msg.linear.x = 0.0
-            self.state = 'follow wall'
-        
-        return lin_x, ang_z
-
 
     def laser_listener_callback(self, msg):
 
@@ -245,6 +204,11 @@ class Follow(Node):
         self.ninty_range = np.mean([msg.ranges[self.angle(i)] for i in range(85, 96)])
         self.twoseventy_range = np.mean([msg.ranges[self.angle(i)] for i in range(260, 280)])
 
+        self.frontright_range = np.mean([msg.ranges[self.angle(i)] for i in range(305, 325)])
+        self.frontleft_range = np.mean([msg.ranges[self.angle(i)] for i in range(35, 55)])
+
+
+        ###dont need?###
         # find the angle of the closest distance to the wall.  
         # if parallel is 90.  if > 90, should rotate CW.  if < 90, should rotate CCW
         #left_ranges = msg.ranges[self.angle(45) : self.angle(135)]
@@ -252,9 +216,10 @@ class Follow(Node):
 
         self.index_min_dist = msg.ranges.index(self.wall_distance)
         self.angle_min_dist = self.indexToAngle(self.index_min_dist)
+        #################
 
         #debugging outputs
-        self.get_logger().info(str(self.twoseventy_range) + '\t' + str(self.zero_range) + '\t' + str(self.ninty_range) + '\t' + str(self.state))
+        self.get_logger().info(str(round(self.twoseventy_range,2)) + '\t' + str(round(self.zero_range,2)) + '\t' + str(round(self.ninty_range,2)) + '\t' + str(self.state))
 
 
 def main(args=None):
